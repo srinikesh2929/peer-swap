@@ -28,7 +28,75 @@
 
   <div id="mentorList"></div>
   <p id="emptyNote" class="empty-note" style="display:none; color:rgba(251,246,236,.75);">No mentors match that search yet — check back soon.</p>
+
+  <hr style="border:none; border-top:1px solid rgba(251,246,236,.2); margin:44px 0 24px;">
+  <div class="eyebrow">QA / demo only — not real data</div>
+  <p class="subtitle" style="margin-bottom:16px;">Six mock cards covering the main visual states, so you can check the UI without needing matching real rows in Supabase.</p>
+  <button class="btn secondary small" id="toggleTestBtn" type="button">Show test scenarios</button>
+  <div id="testScenarioList" style="display:none; margin-top:20px;"></div>
 </div>
+
+<!-- ================= TEST SCENARIOS (mock data, no Supabase writes) ================= -->
+<script>
+const TEST_MENTORS = [
+  { id: 'test-1', name: 'Ravi (Test Case 1)', skills_teach: ['Chess'], vacancy: 3, simulatedLoad: 1,
+    rating_avg: 4.5, rating_count: 12, video_url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+    forceRecommended: true, note: 'Recommended badge + working sample video + spots open' },
+  { id: 'test-2', name: 'Meena (Test Case 2)', skills_teach: ['Photoshop'], vacancy: 2, simulatedLoad: 0,
+    rating_avg: 3.8, rating_count: 6, video_url: null,
+    forceRecommended: false, note: 'Not recommended + no sample video uploaded yet' },
+  { id: 'test-3', name: 'Arjun (Test Case 3)', skills_teach: ['Guitar'], vacancy: 2, simulatedLoad: 2,
+    rating_avg: 4.2, rating_count: 20, video_url: null,
+    forceRecommended: false, note: 'Fully booked — Request button should be disabled' },
+  { id: 'test-4', name: 'Divya (Test Case 4)', skills_teach: ['Python'], vacancy: 5, simulatedLoad: 0,
+    rating_avg: 0, rating_count: 0, video_url: null,
+    forceRecommended: false, note: 'Brand-new mentor — 0 ratings yet, all stars empty' },
+  { id: 'test-5', name: 'Karthik (Test Case 5)', skills_teach: ['Public Speaking'], vacancy: 4, simulatedLoad: 1,
+    rating_avg: 5, rating_count: 40, video_url: null,
+    forceRecommended: true, note: 'Maxed-out rating with a large review count' },
+  { id: 'test-6', name: 'Priya (Test Case 6)', skills_teach: ['Excel','SQL','Data Analysis','Power BI','Tableau'], vacancy: 3, simulatedLoad: 0,
+    rating_avg: 4.0, rating_count: 8, video_url: null,
+    forceRecommended: false, note: 'Many skill tags — checks tag wrapping/layout' }
+];
+
+function renderTestScenarios() {
+  const container = document.getElementById('testScenarioList');
+  container.innerHTML = '';
+  TEST_MENTORS.forEach((m, i) => {
+    MENTOR_BY_ID[m.id] = m; // reuse the real openMentor()/openRequest() lookup
+    const spotsLeft = m.vacancy - m.simulatedLoad;
+    const full = spotsLeft <= 0;
+    const card = document.createElement('div');
+    card.className = 'card tilt-' + (1 + (i % 2));
+    card.innerHTML = `
+      <div class="pin"></div>
+      <div class="hint" style="margin-bottom:6px;">Test case — ${escapeHtml(m.note)}</div>
+      <div class="mentor-card">
+        <div>
+          ${m.forceRecommended ? '<div class="eyebrow" style="color:var(--mustard-dark);">★ Recommended for you</div>' : ''}
+          <div class="mentor-name">${escapeHtml(m.name)}</div>
+          <div class="mentor-rating">${starString(m.rating_avg)} <span style="color:var(--ink-soft); font-weight:500;">(${m.rating_count})</span></div>
+          <div style="margin-top:8px;">${m.skills_teach.map(s => `<span class="skill-tag">${escapeHtml(s)}</span>`).join('')}</div>
+          <div class="vacancy-tag ${full ? 'full' : ''}">${full ? 'Fully booked right now' : spotsLeft + ' spot(s) open'}</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; min-width:150px;">
+          <button class="btn secondary small" onclick="openMentor('${m.id}')">View profile</button>
+          <button class="btn small" ${full ? 'disabled' : ''} onclick="openRequest('${m.id}')">Request session</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+document.getElementById('toggleTestBtn').addEventListener('click', () => {
+  const el = document.getElementById('testScenarioList');
+  const btn = document.getElementById('toggleTestBtn');
+  const showing = el.style.display !== 'none';
+  if (showing) { el.style.display = 'none'; btn.textContent = 'Show test scenarios'; }
+  else { renderTestScenarios(); el.style.display = 'block'; btn.textContent = 'Hide test scenarios'; }
+});
+</script>
 
 <!-- Mentor detail / video modal -->
 <div class="modal-backdrop" id="modalBackdrop">
@@ -143,6 +211,14 @@ function openMentor(mentorId) {
 
 async function openRequest(mentorId) {
   const m = MENTOR_BY_ID[mentorId];
+
+  if (mentorId.startsWith('test-')) {
+    openModal(`
+      <h2>Request a session with ${escapeHtml(m.name)}</h2>
+      <p>This is a test-case card for checking the UI, not a real mentor — so no request or email is actually sent here. Use this same "Request session" flow on a real mentor card above to test it end-to-end.</p>
+    `);
+    return;
+  }
   const load = await getMentorLoad(m.id);
   const spotsLeft = (m.vacancy || 0) - load;
   if (spotsLeft <= 0) { openModal(`<p>${escapeHtml(m.name)} is fully booked right now. Try again later!</p>`); return; }
@@ -154,7 +230,7 @@ async function openRequest(mentorId) {
     <h2>Request a session with ${escapeHtml(m.name)}</h2>
     <label>Skill</label>
     <select id="reqSkill">${skillOptions}</select>
-    <p class="hint">${overlap.length ? 'You're both free: ' + overlap.join(', ') : 'Heads up — you two have no overlapping free-time slots yet.'}</p>
+    <p class="hint">${overlap.length ? "You're both free: " + overlap.join(', ') : "Heads up — you two have no overlapping free-time slots yet."}</p>
     <label>Message (optional)</label>
     <textarea id="reqMsg" rows="3" placeholder="Hi! I'd love to learn..."></textarea>
     <button class="btn" id="sendReqBtn" style="margin-top:14px;">Send request</button>
