@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My requests — Skill-Swap Board</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Skill<span>Swap</span> Board</div>
+  <nav>
+    <a href="index.html">Sign up</a>
+    <a href="browse.html">Browse mentors</a>
+    <a href="dashboard.html">My requests</a>
+  </nav>
+</div>
+
+<div class="wrap">
+  <div class="eyebrow">Your board</div>
+  <h1 class="page-title">Requests</h1>
+
+  <h2 style="color:var(--card); font-size:1.1rem; margin-top:30px;">People who want to learn from you</h2>
+  <div id="incomingList"></div>
+  <p id="incomingEmpty" class="empty-note" style="display:none;">No one has requested a session with you yet.</p>
+
+  <h2 style="color:var(--card); font-size:1.1rem; margin-top:44px;">Sessions you've requested</h2>
+  <div id="outgoingList"></div>
+  <p id="outgoingEmpty" class="empty-note" style="display:none;">You haven't requested any sessions yet — go browse mentors!</p>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script>
+if (requireProfileOrRedirect()) { init(); }
+let ME = null;
+
+async function init() {
+  ME = await getCurrentProfile();
+  if (!ME) { window.location.href = 'index.html'; return; }
+  await loadIncoming();
+  await loadOutgoing();
+}
+
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function statusTag(s) { return `<span class="status-tag status-${s}">${s}</span>`; }
+function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); }
+function openModal(html) { document.getElementById('modalBody').innerHTML = html; document.getElementById('modalBackdrop').classList.add('open'); }
+
+async function loadIncoming() {
+  const { data, error } = await supabaseClient
+    .from('requests')
+    .select('*, learner:learner_id(name, email)')
+    .eq('mentor_id', ME.id)
+    .order('created_at', { ascending: false });
+
+  const list = document.getElementById('incomingList');
+  const empty = document.getElementById('incomingEmpty');
+  list.innerHTML = '';
+  if (error || !data || data.length === 0) { empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  data.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'card tilt-2';
+    card.innerHTML = `
+      <div class="pin"></div>
+      <div class="mentor-card">
+        <div>
+          <div class="mentor-name">${escapeHtml(r.learner?.name || 'Unknown')}</div>
+          <div class="hint">${escapeHtml(r.learner?.email || '')}</div>
+          <div style="margin-top:6px;"><span class="skill-tag">${escapeHtml(r.skill)}</span> ${statusTag(r.status)}</div>
+          ${r.message ? `<p class="hint" style="margin-top:8px;">"${escapeHtml(r.message)}"</p>` : ''}
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${r.status === 'pending' ? `
+            <button class="btn small" onclick="updateStatus('${r.id}', 'accepted')">Accept</button>
+            <button class="btn secondary small" onclick="updateStatus('${r.id}', 'declined')">Decline</button>
+          ` : ''}
+          ${r.status === 'accepted' ? `<button class="btn secondary small" onclick="updateStatus('${r.id}', 'completed')">Mark completed</button>` : ''}
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+async function updateStatus(requestId, status) {
+  const { error } = await supabaseClient.from('requests').update({ status }).eq('id', requestId);
+  if (error) { console.error(error); alert('Could not update — try again.'); return; }
+  await loadIncoming();
+}
+
+async function loadOutgoing() {
+  const { data, error } = await supabaseClient
+    .from('requests')
+    .select('*, mentor:mentor_id(id, name, email)')
+    .eq('learner_id', ME.id)
+    .order('created_at', { ascending: false });
+
+  const list = document.getElementById('outgoingList');
+  const empty = document.getElementById('outgoingEmpty');
+  list.innerHTML = '';
+  if (error || !data || data.length === 0) { empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  data.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'card tilt-1';
+    card.innerHTML = `
+      <div class="pin"></div>
+      <div class="mentor-card">
+        <div>
+          <div class="mentor-name">${escapeHtml(r.mentor?.name || 'Unknown')}</div>
+          <div style="margin-top:6px;"><span class="skill-tag">${escapeHtml(r.skill)}</span> ${statusTag(r.status)}</div>
+        </div>
+        <div>
+          ${r.status === 'completed' ? `<button class="btn small" onclick="openRating('${r.id}', '${r.mentor.id}', '${escapeHtml(r.mentor.name)}')">Rate this session</button>` : ''}
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function openRating(requestId, mentorId, mentorName) {
+  openModal(`
+    <h2>Rate your session with ${mentorName}</h2>
+    <div class="stars-input" id="starsInput">
+      ${[1,2,3,4,5].map(n => `<span data-n="${n}">★</span>`).join('')}
+    </div>
+    <label>Comment (optional)</label>
+    <textarea id="ratingComment" rows="3"></textarea>
+    <button class="btn" id="submitRatingBtn" style="margin-top:12px;" disabled>Submit rating</button>
+  `);
+
+  let chosen = 0;
+  const stars = document.querySelectorAll('#starsInput span');
+  stars.forEach(s => s.addEventListener('click', () => {
+    chosen = parseInt(s.dataset.n, 10);
+    stars.forEach(st => st.classList.toggle('on', parseInt(st.dataset.n,10) <= chosen));
+    document.getElementById('submitRatingBtn').disabled = false;
+  }));
+
+  document.getElementById('submitRatingBtn').addEventListener('click', async () => {
+    const comment = document.getElementById('ratingComment').value.trim();
+    const { error: rErr } = await supabaseClient.from('ratings').insert({
+      mentor_id: mentorId, learner_id: ME.id, stars: chosen, comment, request_id: requestId
+    });
+    if (rErr) { console.error(rErr); alert('Could not save rating.'); return; }
+
+    // recompute mentor's running average client-side
+    const { data: allRatings } = await supabaseClient.from('ratings').select('stars').eq('mentor_id', mentorId);
+    const count = allRatings.length;
+    const avg = allRatings.reduce((sum, r) => sum + r.stars, 0) / count;
+    await supabaseClient.from('profiles').update({ rating_avg: avg, rating_count: count }).eq('id', mentorId);
+
+    closeModal();
+    await loadOutgoing();
+  });
+}
+</script>
+</body>
+</html>

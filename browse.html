@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browse mentors — Skill-Swap Board</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Skill<span>Swap</span> Board</div>
+  <nav>
+    <a href="index.html">Sign up</a>
+    <a href="browse.html">Browse mentors</a>
+    <a href="dashboard.html">My requests</a>
+  </nav>
+</div>
+
+<div class="wrap">
+  <div class="eyebrow">On campus</div>
+  <h1 class="page-title">Find someone to learn from</h1>
+  <p class="subtitle">Cards marked <strong style="color:var(--mustard)">★ Recommended</strong> overlap with a skill you want and a slot you're free.</p>
+
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Search a skill — e.g. Chess, Python, Photoshop...">
+  </div>
+
+  <div id="mentorList"></div>
+  <p id="emptyNote" class="empty-note" style="display:none; color:rgba(251,246,236,.75);">No mentors match that search yet — check back soon.</p>
+</div>
+
+<!-- Mentor detail / video modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="app.js"></script>
+<script>
+if (requireProfileOrRedirect()) { init(); }
+
+let ME = null;
+let ALL_MENTORS = [];
+let MENTOR_BY_ID = {};
+
+async function init() {
+  ME = await getCurrentProfile();
+  if (!ME) { window.location.href = 'index.html'; return; }
+
+  const { data, error } = await supabaseClient
+    .from('profiles')
+    .select('*')
+    .in('role', ['teach', 'both'])
+    .neq('id', ME.id);
+
+  if (error) { console.error(error); return; }
+  ALL_MENTORS = data || [];
+  ALL_MENTORS.forEach(m => MENTOR_BY_ID[m.id] = m);
+  await render(ALL_MENTORS);
+
+  document.getElementById('searchInput').addEventListener('input', async (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    const filtered = !q ? ALL_MENTORS : ALL_MENTORS.filter(m =>
+      (m.skills_teach || []).some(s => s.toLowerCase().includes(q)) || m.name.toLowerCase().includes(q)
+    );
+    await render(filtered);
+  });
+}
+
+function toYouTubeEmbed(url) {
+  if (!url) return null;
+  const m = url.match(/(?:youtu\.be\/|v=|embed\/)([\w-]{6,})/);
+  return m ? `https://www.youtube.com/embed/${m[1]}` : url;
+}
+
+async function render(mentors) {
+  const listEl = document.getElementById('mentorList');
+  const emptyEl = document.getElementById('emptyNote');
+  listEl.innerHTML = '';
+
+  if (mentors.length === 0) { emptyEl.style.display = 'block'; return; }
+  emptyEl.style.display = 'none';
+
+  // recommended = shares a skill I want to learn AND a free-time slot
+  const scored = mentors.map(m => {
+    const skillMatch = arraysShareItem(m.skills_teach, ME.skills_learn);
+    const timeMatch = overlapScore(m.free_time, ME.free_time) > 0;
+    return { m, recommended: skillMatch && timeMatch, skillMatch };
+  }).sort((a, b) => (b.recommended - a.recommended) || (b.skillMatch - a.skillMatch));
+
+  for (const { m, recommended } of scored) {
+    const load = await getMentorLoad(m.id);
+    const spotsLeft = (m.vacancy || 0) - load;
+    const full = spotsLeft <= 0;
+
+    const card = document.createElement('div');
+    card.className = 'card tilt-' + (1 + (Math.random() > .5 ? 1 : 0));
+    card.innerHTML = `
+      <div class="pin"></div>
+      <div class="mentor-card">
+        <div>
+          ${recommended ? '<div class="eyebrow" style="color:var(--mustard-dark);">★ Recommended for you</div>' : ''}
+          <div class="mentor-name">${escapeHtml(m.name)}</div>
+          <div class="mentor-rating">${starString(m.rating_avg)} <span style="color:var(--ink-soft); font-weight:500;">(${m.rating_count || 0})</span></div>
+          <div style="margin-top:8px;">${(m.skills_teach || []).map(s => `<span class="skill-tag">${escapeHtml(s)}</span>`).join('')}</div>
+          <div class="vacancy-tag ${full ? 'full' : ''}">${full ? 'Fully booked right now' : spotsLeft + ' spot(s) open'}</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; min-width:150px;">
+          <button class="btn secondary small" onclick="openMentor('${m.id}')">View profile</button>
+          <button class="btn small" ${full ? 'disabled' : ''} onclick="openRequest('${m.id}')">Request session</button>
+        </div>
+      </div>
+    `;
+    listEl.appendChild(card);
+  }
+}
+
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+function openModal(html) {
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalBackdrop').classList.add('open');
+}
+function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); }
+
+function openMentor(mentorId) {
+  const m = MENTOR_BY_ID[mentorId];
+  const embed = toYouTubeEmbed(m.video_url);
+  openModal(`
+    <h2>${escapeHtml(m.name)}</h2>
+    <div class="mentor-rating">${starString(m.rating_avg)} (${m.rating_count || 0} ratings)</div>
+    <p style="margin-top:10px;"><strong>Teaches:</strong> ${(m.skills_teach || []).map(escapeHtml).join(', ')}</p>
+    <p><strong>Free:</strong> ${(m.free_time || []).map(escapeHtml).join(', ')}</p>
+    ${embed ? `<iframe src="${embed}" allowfullscreen title="Sample class"></iframe>` : '<p class="hint">No sample video uploaded yet.</p>'}
+    <button class="btn" onclick="closeModal(); openRequest('${m.id}')">Request a session</button>
+  `);
+}
+
+async function openRequest(mentorId) {
+  const m = MENTOR_BY_ID[mentorId];
+  const load = await getMentorLoad(m.id);
+  const spotsLeft = (m.vacancy || 0) - load;
+  if (spotsLeft <= 0) { openModal(`<p>${escapeHtml(m.name)} is fully booked right now. Try again later!</p>`); return; }
+
+  const skillOptions = (m.skills_teach || []).map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  const overlap = (ME.free_time || []).filter(t => (m.free_time || []).includes(t));
+
+  openModal(`
+    <h2>Request a session with ${escapeHtml(m.name)}</h2>
+    <label>Skill</label>
+    <select id="reqSkill">${skillOptions}</select>
+    <p class="hint">${overlap.length ? 'You're both free: ' + overlap.join(', ') : 'Heads up — you two have no overlapping free-time slots yet.'}</p>
+    <label>Message (optional)</label>
+    <textarea id="reqMsg" rows="3" placeholder="Hi! I'd love to learn..."></textarea>
+    <button class="btn" id="sendReqBtn" style="margin-top:14px;">Send request</button>
+    <p id="reqStatus" class="hint"></p>
+  `);
+
+  document.getElementById('sendReqBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('sendReqBtn');
+    const statusEl = document.getElementById('reqStatus');
+    btn.disabled = true; btn.textContent = 'Sending...';
+
+    const skill = document.getElementById('reqSkill').value;
+    const message = document.getElementById('reqMsg').value.trim();
+
+    const { error } = await supabaseClient.from('requests').insert({
+      mentor_id: m.id, learner_id: ME.id, skill, message, status: 'pending'
+    });
+
+    if (error) { console.error(error); statusEl.textContent = 'Could not send request. Try again.'; btn.disabled = false; btn.textContent = 'Send request'; return; }
+
+    const emailResult = await sendMentorNotification({
+      mentorEmail: m.email, mentorName: m.name,
+      learnerName: ME.name, learnerEmail: ME.email,
+      skill, learnerFreeTime: ME.free_time
+    });
+
+    statusEl.textContent = emailResult.ok
+      ? 'Request sent — ' + m.name + ' has been emailed!'
+      : 'Request saved. (Email notification failed — check EmailJS config.)';
+    btn.textContent = 'Sent ✓';
+  });
+}
+</script>
+</body>
+</html>

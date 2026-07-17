@@ -1,0 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --board:#1F3B2C;
+  --board-dark:#193024;
+  --card:#FBF6EC;
+  --card-edge:#EDE4CF;
+  --ink:#233326;
+  --ink-soft:#5C6B5E;
+  --mustard:#D9A441;
+  --mustard-dark:#B8842A;
+  --thread:#8C3B2E;
+  --radius:3px;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Inter',sans-serif;
+  color:var(--ink);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255,255,255,0.03) 0, transparent 40%),
+    radial-gradient(circle at 80% 60%, rgba(255,255,255,0.025) 0, transparent 45%),
+    var(--board);
+  min-height:100vh;
+}
+
+h1,h2,h3{font-family:'Fraunces',serif; font-weight:700; margin:0 0 .3em;}
+
+/* ---------- top bar (looks like a nailed wooden strip) ---------- */
+.topbar{
+  background:var(--board-dark);
+  border-bottom:2px solid rgba(0,0,0,.3);
+  padding:14px 28px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.topbar .brand{
+  color:var(--card);
+  font-family:'Fraunces',serif;
+  font-weight:700;
+  font-size:1.3rem;
+  letter-spacing:.02em;
+}
+.topbar .brand span{color:var(--mustard);}
+.topbar nav a{
+  color:var(--card);
+  text-decoration:none;
+  margin-left:22px;
+  font-size:.92rem;
+  font-weight:500;
+  opacity:.85;
+  border-bottom:2px solid transparent;
+  padding-bottom:3px;
+}
+.topbar nav a:hover, .topbar nav a:focus-visible{opacity:1; border-color:var(--mustard);}
+
+.wrap{max-width:980px; margin:0 auto; padding:40px 20px 80px;}
+
+/* ---------- index cards ---------- */
+.card{
+  background:var(--card);
+  border:1px solid var(--card-edge);
+  border-radius:var(--radius);
+  padding:22px 24px;
+  box-shadow:0 10px 22px rgba(0,0,0,.28), 0 2px 0 rgba(0,0,0,.05);
+  position:relative;
+}
+.card + .card{margin-top:22px;}
+
+/* pushpin */
+.pin{
+  width:14px; height:14px;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #ff8f7a, var(--thread));
+  position:absolute; top:-8px; left:20px;
+  box-shadow:0 3px 4px rgba(0,0,0,.35);
+}
+
+.tilt-1{transform:rotate(-.6deg);}
+.tilt-2{transform:rotate(.5deg);}
+.tilt-3{transform:rotate(-.3deg);}
+
+/* ---------- form elements ---------- */
+label{display:block; font-weight:600; font-size:.85rem; color:var(--ink-soft); margin:16px 0 6px; text-transform:uppercase; letter-spacing:.04em;}
+input[type=text], input[type=email], input[type=number], input[type=url], select, textarea{
+  width:100%; padding:11px 12px; font-family:'Inter',sans-serif; font-size:.98rem;
+  border:1.5px solid var(--card-edge); border-radius:var(--radius); background:#fff; color:var(--ink);
+}
+input:focus, select:focus, textarea:focus{outline:2px solid var(--mustard); outline-offset:1px; border-color:var(--mustard);}
+.hint{font-size:.8rem; color:var(--ink-soft); margin-top:4px;}
+
+.chip-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;}
+.chip{
+  border:1.5px solid var(--card-edge); background:#fff; padding:8px 14px; border-radius:20px;
+  cursor:pointer; font-size:.88rem; font-weight:500; user-select:none;
+}
+.chip input{display:none;}
+.chip.selected{background:var(--mustard); border-color:var(--mustard-dark); color:#2b1c05;}
+
+.role-row{display:flex; gap:10px; margin-top:6px;}
+.role-btn{
+  flex:1; text-align:center; padding:14px 10px; border:1.5px solid var(--card-edge); border-radius:var(--radius);
+  cursor:pointer; font-weight:600; background:#fff;
+}
+.role-btn.selected{background:var(--ink); color:var(--card); border-color:var(--ink);}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-block; border:none; border-radius:var(--radius); padding:12px 22px;
+  font-family:'Inter',sans-serif; font-weight:700; font-size:.92rem; cursor:pointer;
+  background:var(--mustard); color:#2b1c05; letter-spacing:.02em;
+}
+.btn:hover{background:var(--mustard-dark);}
+.btn.secondary{background:transparent; border:1.5px solid var(--ink); color:var(--ink);}
+.btn.secondary:hover{background:var(--ink); color:var(--card);}
+.btn.small{padding:8px 14px; font-size:.82rem;}
+.btn.danger{background:var(--thread); color:#fff;}
+.btn:disabled{opacity:.5; cursor:not-allowed;}
+
+/* ---------- mentor card ---------- */
+.mentor-card{display:flex; justify-content:space-between; gap:18px; align-items:flex-start;}
+.mentor-name{font-family:'Fraunces',serif; font-size:1.15rem; font-weight:700;}
+.mentor-rating{color:var(--mustard-dark); font-weight:700; letter-spacing:1px;}
+.skill-tag{
+  display:inline-block; background:#EEE7D2; color:var(--ink); border-radius:20px;
+  padding:4px 11px; font-size:.78rem; font-weight:600; margin:2px 4px 0 0;
+}
+.vacancy-tag{font-size:.8rem; color:var(--ink-soft); margin-top:6px;}
+.vacancy-tag.full{color:var(--thread); font-weight:700;}
+
+.search-bar{margin-bottom:24px;}
+.eyebrow{color:var(--mustard); font-size:.78rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; margin-bottom:6px;}
+.subtitle{color:rgba(251,246,236,.75); margin-bottom:32px; font-size:1.02rem;}
+.page-title{color:var(--card);}
+
+/* ---------- modal ---------- */
+.modal-backdrop{
+  position:fixed; inset:0; background:rgba(15,25,17,.72); display:none;
+  align-items:center; justify-content:center; padding:20px; z-index:50;
+}
+.modal-backdrop.open{display:flex;}
+.modal{background:var(--card); border-radius:var(--radius); max-width:520px; width:100%; padding:26px; max-height:88vh; overflow-y:auto;}
+.modal video, .modal iframe{width:100%; aspect-ratio:16/9; border:none; border-radius:var(--radius); margin:12px 0;}
+.modal-close{float:right; background:none; border:none; font-size:1.3rem; cursor:pointer; color:var(--ink-soft);}
+
+.status-tag{font-size:.76rem; font-weight:700; padding:3px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:.03em;}
+.status-pending{background:#FCEBC5; color:#7A5A05;}
+.status-accepted{background:#D8ECD9; color:#245C2A;}
+.status-declined{background:#F3D3CD; color:#8C2E1E;}
+.status-completed{background:#DDE2EE; color:#39406B;}
+
+.empty-note{color:var(--ink-soft); font-style:italic;}
+.stars-input span{font-size:1.6rem; cursor:pointer; color:#ccc;}
+.stars-input span.on{color:var(--mustard-dark);}
+
+@media (max-width:600px){
+  .topbar{flex-direction:column; gap:10px; align-items:flex-start;}
+  .mentor-card{flex-direction:column;}
+}

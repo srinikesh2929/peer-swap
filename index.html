@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peer Skill-Swap Board — Sign up</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+
+  <body>
+
+    <div class="topbar">
+      <div class="brand">Skill<span>Swap</span> Board</div>
+      <nav>
+        <a href="index.html">Sign up</a>
+        <a href="browse.html">Browse mentors</a>
+        <a href="dashboard.html">My requests</a>
+      </nav>
+    </div>
+
+    <div class="wrap" style="max-width:640px;">
+      <div class="eyebrow">Campus peer tutoring</div>
+      <h1 class="page-title">Tell us what you've got &amp; what you need</h1>
+      <p class="subtitle">Takes two minutes. We'll remember you next time you visit.</p>
+
+      <div id="returningNote" class="card tilt-1" style="display:none;">
+        <div class="pin"></div>
+        <p>Looks like you've already got a profile on this browser.</p>
+        <button class="btn" onclick="window.location.href='browse.html'">Go to Browse mentors →</button>
+        <button class="btn secondary small" style="margin-left:8px;" onclick="startFresh()">Register a new profile
+          instead</button>
+      </div>
+
+      <form id="onboardForm" class="card tilt-1">
+        <div class="pin"></div>
+
+        <label for="name">Full name</label>
+        <input type="text" id="name" required placeholder="e.g. Srinikesh R">
+
+        <label for="email">College email</label>
+        <input type="email" id="email" required placeholder="you@college.edu">
+
+        <label>I want to...</label>
+        <div class="role-row">
+          <div class="role-btn" data-role="teach">Teach</div>
+          <div class="role-btn" data-role="learn">Learn</div>
+          <div class="role-btn" data-role="both">Both</div>
+        </div>
+
+        <div id="teachFields" style="display:none;">
+          <label for="skillsTeach">Skills you can teach (comma-separated)</label>
+          <input type="text" id="skillsTeach" placeholder="e.g. Python, Guitar, Chess">
+
+          <label for="vacancy">How many learners can you take on at once?</label>
+          <input type="number" id="vacancy" min="1" max="20" value="3">
+
+          <label for="videoUrl">Sample class video (YouTube link — set it to "Unlisted")</label>
+          <input type="url" id="videoUrl" placeholder="https://youtu.be/MOK5MqzlleQ">
+          <p class="hint">Optional, but mentors with a sample clip get picked far more often.</p>
+        </div>
+
+        <div id="learnFields" style="display:none;">
+          <label for="skillsLearn">Skills you want to learn (comma-separated)</label>
+          <input type="text" id="skillsLearn" placeholder="e.g. Photoshop, Public Speaking">
+        </div>
+
+        <label>Your free time</label>
+        <div class="chip-row" id="freeTimeRow"></div>
+
+        <div style="margin-top:22px;">
+          <button type="submit" class="btn" id="submitBtn">Create my profile</button>
+        </div>
+        <p id="formError" class="hint" style="color:#8C2E1E;"></p>
+      </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+    <script>
+      // build free-time chips
+      const ftRow = document.getElementById('freeTimeRow');
+      FREE_TIME_SLOTS.forEach(slot => {
+        const chip = document.createElement('label');
+        chip.className = 'chip';
+        chip.innerHTML = `<input type="checkbox" value="${slot}"> ${slot}`;
+        chip.addEventListener('click', () => setTimeout(() => chip.classList.toggle('selected', chip.querySelector('input').checked), 0));
+        ftRow.appendChild(chip);
+      });
+
+      // role selection
+      let selectedRole = null;
+      document.querySelectorAll('.role-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          selectedRole = btn.dataset.role;
+          document.getElementById('teachFields').style.display = (selectedRole === 'teach' || selectedRole === 'both') ? 'block' : 'none';
+          document.getElementById('learnFields').style.display = (selectedRole === 'learn' || selectedRole === 'both') ? 'block' : 'none';
+        });
+      });
+
+      function startFresh() {
+        clearCookie('swap_uid');
+        document.getElementById('returningNote').style.display = 'none';
+        document.getElementById('onboardForm').style.display = 'block';
+      }
+
+      // returning visitor check
+      (async () => {
+        const uid = getCookie('swap_uid');
+        if (uid) {
+          document.getElementById('onboardForm').style.display = 'none';
+          document.getElementById('returningNote').style.display = 'block';
+        }
+      })();
+
+      document.getElementById('onboardForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('formError');
+        errEl.textContent = '';
+
+        if (!selectedRole) { errEl.textContent = 'Please choose Teach, Learn, or Both.'; return; }
+        const freeTime = [...document.querySelectorAll('#freeTimeRow input:checked')].map(i => i.value);
+        if (freeTime.length === 0) { errEl.textContent = 'Pick at least one free-time slot — matching depends on it.'; return; }
+
+        const skillsTeach = document.getElementById('skillsTeach').value.split(',').map(s => s.trim()).filter(Boolean);
+        const skillsLearn = document.getElementById('skillsLearn').value.split(',').map(s => s.trim()).filter(Boolean);
+
+        if ((selectedRole === 'teach' || selectedRole === 'both') && skillsTeach.length === 0) {
+          errEl.textContent = 'List at least one skill you can teach.'; return;
+        }
+        if ((selectedRole === 'learn' || selectedRole === 'both') && skillsLearn.length === 0) {
+          errEl.textContent = 'List at least one skill you want to learn.'; return;
+        }
+
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true; submitBtn.textContent = 'Saving...';
+
+        const payload = {
+          name: document.getElementById('name').value.trim(),
+          email: document.getElementById('email').value.trim(),
+          role: selectedRole,
+          skills_teach: skillsTeach,
+          skills_learn: skillsLearn,
+          free_time: freeTime,
+          vacancy: parseInt(document.getElementById('vacancy').value || '3', 10),
+          video_url: document.getElementById('videoUrl').value.trim() || null,
+          rating_avg: 0,
+          rating_count: 0
+        };
+
+        const { data, error } = await supabaseClient.from('profiles').insert(payload).select().single();
+
+        if (error) {
+          console.error(error);
+          errEl.textContent = 'Something went wrong saving your profile. Check your Supabase config in app.js.';
+          submitBtn.disabled = false; submitBtn.textContent = 'Create my profile';
+          return;
+        }
+
+        setCookie('swap_uid', data.id, 365);
+        window.location.href = 'browse.html';
+      });
+    </script>
+  </body>
+
+</html>
